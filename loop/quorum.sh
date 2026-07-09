@@ -5,7 +5,7 @@
 # here 3 independent samples of $CHEAP (set VOTER2/VOTER3 to diversify models later).
 set -euo pipefail
 cd "$(dirname "$0")"
-CHEAP="${CHEAP:-claude-haiku-4-5-20251001}"
+CHEAP="${CHEAP:-claude-sonnet-5}"
 VOTER2="${VOTER2:-$CHEAP}"
 VOTER3="${VOTER3:-$CHEAP}"
 NL=$'\n'

@@ -8,10 +8,13 @@ NL=$'\n'
 
 MAX_ITERS="${MAX_ITERS:-10}"
 DAILY_BUDGET_USD="${DAILY_BUDGET_USD:-5}"
-CHEAP="${CHEAP:-claude-haiku-4-5-20251001}"
-WORKER="${WORKER:-claude-haiku-4-5-20251001}"
-CONDUCTOR_MODEL="${CONDUCTOR_MODEL:-claude-fable-5}"
+CHEAP="${CHEAP:-claude-sonnet-5}"
+WORKER="${WORKER:-claude-sonnet-5}"
+CONDUCTOR_MODEL="${CONDUCTOR_MODEL:-claude-opus-4-8}"   # public default; set to claude-fable-5 if you have access
 FALLBACK_MODEL="${FALLBACK_MODEL:-claude-opus-4-8}"
+
+# Seed STATE.md on a fresh clone (it is gitignored; the loop reads it below).
+[ -f memory/STATE.md ] || printf '# STATE\n' > memory/STATE.md
 
 ./scripts/cost-check.sh --budget "$DAILY_BUDGET_USD" || exit 3
 
@@ -21,10 +24,10 @@ for ((i=1; i<=MAX_ITERS; i++)); do
   SIGNALS=$({ git log --oneline -20; gh issue list --limit 20 2>/dev/null || true; gh run list --limit 10 2>/dev/null || true; })
   TRIAGE=$(claude -p "$(cat triage.md)${NL}${NL}INPUT:${NL}${SIGNALS}" --model "$CHEAP")
   printf '%s\n' "$TRIAGE" >> memory/STATE.md
-  ./scripts/log-cost.sh triage 0.01
+  ./scripts/log-cost.sh triage 0.04
   printf '%s' "$TRIAGE" | grep -q "status: actionable" || { echo quiet; exit 0; }
 
-  # 2 CONDUCT: Fable, xhigh, fresh context, read-only, JSON out
+  # 2 CONDUCT: conductor seat ($CONDUCTOR_MODEL), xhigh, fresh context, read-only, JSON out
   claude -p "$(cat conductor.md)${NL}${NL}STATE:${NL}$(cat memory/STATE.md)${NL}${NL}TRUST:${NL}$(./scripts/trust-log.sh --render)${NL}${NL}CONTRACT:${NL}$(cat contract.md)" \
     --model "$CONDUCTOR_MODEL" --effort xhigh --allowedTools "Read" \
     --fallback-model "$FALLBACK_MODEL" --output-format json > /tmp/c.json
@@ -37,8 +40,11 @@ for ((i=1; i<=MAX_ITERS; i++)); do
   fi
 
   # 2b ROUTE-TOLERANCE: never iterate on output from a model you didn't choose
-  SERVED=$(jq -r '.modelUsage | keys[0] // "claude-fable-5"' /tmp/c.json)
-  [[ "$SERVED" != *fable* ]] && { echo "- rerouted: served by $SERVED" >> memory/STATE.md; exit 2; }
+  SERVED=$(jq -r '.modelUsage | keys[0] // "'"$CONDUCTOR_MODEL"'"' /tmp/c.json)
+  case "$SERVED" in
+    *"$CONDUCTOR_MODEL"*) : ;;   # served by the model we chose — safe to iterate on
+    *) echo "- rerouted: served by $SERVED (expected $CONDUCTOR_MODEL)" >> memory/STATE.md; exit 2 ;;
+  esac
   jq -r '.result' /tmp/c.json | sed 's/^```json$//; s/^```$//' > work-order.json
   SKILL=$(jq -r .skill work-order.json); ACTION=$(jq -r .action work-order.json)
   [[ "$ACTION" == stop  ]] && exit 0
@@ -55,7 +61,7 @@ for ((i=1; i<=MAX_ITERS; i++)); do
     [ -f IMPLEMENTATION.md ] || printf '%s\n' "$OUT" > IMPLEMENTATION.md
     git add -A
   )
-  ./scripts/log-cost.sh worker 0.10
+  ./scripts/log-cost.sh worker 0.30
 
   # 4 VERIFY: fresh Fable, no tools, sees only spec + diff (staged, so new files count)
   V=$(claude -p "$(cat workers/verify.md)${NL}${NL}SPEC:${NL}$(jq -r .spec work-order.json)${NL}${NL}DIFF:${NL}$(cd "$WT" && git diff --cached)" \

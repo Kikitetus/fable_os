@@ -1,0 +1,8 @@
+# Per-user runtime state — never commit
+loop/memory/*.tsv
+loop/memory/*.log
+loop/memory/cron.log
+loop/memory/STATE.md
+
+# Isolated worktrees created by the loop
+wt-*/

@@ -232,6 +232,20 @@ make goals    # re-verify every standing goal now
 make clean-worktrees
 ```
 
+## Evaluating effectiveness
+
+Don't judge the system after 2-3 ticks — Weeks 1-2 are draft-only by design and will
+look noisy on purpose. Judge it at the Week 3/4 graduation checkpoints instead, using
+the instrumentation it already logs for you:
+
+| Question | Command / file | What "working" looks like |
+| :--- | :--- | :--- |
+| Is it accurate? | `make trust` (`loop/memory/trust.tsv`) | A skill crosses 20 logged runs at 95%+ success before it's allowed to graduate. |
+| Is it worth the spend? | `make audit` (`loop/memory/usage.log`) | $/chore stays under `DAILY_BUDGET_USD` and beats the time you'd have spent doing it yourself. |
+| Is its judgment good? | `make queue` history | Week 1's own graduation bar: 3 consecutive runs route exactly as you would have. |
+| Do fixes stick? | `make goals` (`loop/memory/goal-ledger.tsv`) | No `VIOLATED` regressions on things it already fixed. |
+| How much does it need you? | `exit 2` / `exit 3` / `ALERT` / standoff counts | Falling toward zero unattended interventions by Week 3. |
+
 ## The runbook — every alarm and what to do
 
 - **exit 2 (reroute/refusal):** safeguard router swapped models or a classifier
